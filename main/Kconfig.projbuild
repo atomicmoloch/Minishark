@@ -1,0 +1,17 @@
+menu "Minishark Configuration"
+
+	config MAX_CHANNEL
+		int "MAX CHANNEL"
+		range 0 255
+		default 11
+		help
+			Max wifi channel in scan rotation
+
+	config MIN_CHANNEL
+		int "MIN CHANNEL"
+		range 0 255
+		default 0
+		help
+			Minimum wifi channel in scan rotation
+
+endmenu
