@@ -1,17 +1,79 @@
 menu "Minishark Configuration"
 
+	config DISPLAY_UNKNOWN
+		bool "Display/Log Unknown Identifications"
+		default false
+		help
+			Display/Log Unknown Identifications
+
 	config MAX_CHANNEL
-		int "MAX CHANNEL"
+		int "Wifi Max Channel"
 		range 0 255
 		default 11
 		help
 			Max wifi channel in scan rotation
 
 	config MIN_CHANNEL
-		int "MIN CHANNEL"
+		int "Wifi Min Channel"
 		range 0 255
 		default 0
 		help
 			Minimum wifi channel in scan rotation
+
+	config SD_LOGGING
+		bool "Enable SD Card Logging"
+		default false
+		help
+			Enable logging to SD card (if present)
+
+	config FORMAT_IF_MOUNT_FAILS
+		bool "Format SD Card If Mount Fails"
+		default false
+		help
+			Format SD Card If Mount Fails
+
+	choice SDSPI_HOST
+		prompt "SPI peripheral for SD card"
+		default SDSPI2_HOST
+		help
+			Select SPI peripheral that controls SD card
+		config SDSPI2_HOST
+			bool "SPI2_HOST"
+			help
+				Use SPI2_HOST. This is also called HSPI_HOST.
+		config SDSPI3_HOST
+			depends on IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4
+			bool "SPI3_HOST"
+			help
+				USE SPI3_HOST. This is also called VSPI_HOST
+	endchoice
+
+	config SDMISO_GPIO
+		int "SDSPI MISO GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 22
+		help
+			GPIO number (IOxx) to SPI MISO.
+
+	config SDMOSI_GPIO
+		int "SDSPI MOSI GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 19
+		help
+			GPIO number (IOxx) to SDSPI MOSI.
+
+	config SDSCLK_GPIO
+		int "SDSPI SCLK GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 21
+		help
+			GPIO number (IOxx) to SDSPI SCLK.
+
+	config SDCS_GPIO
+		int "SDSPI CS GPIO number"
+		range 0 GPIO_RANGE_MAX
+		default 0
+		help
+			GPIO number (IOxx) to SDSPI CS.
 
 endmenu

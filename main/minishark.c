@@ -21,6 +21,20 @@ static const char *TAG = "scan_test";
 
 uint64_t registered_MACs[64] = {0};
 
+
+esp_err_t sd_log(char *data) {
+    FILE *f = fopen("/minishark/log.txt", "w");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for writing");
+        return ESP_FAIL;
+    }
+    fprintf(f, data);
+    fclose(f);
+    ESP_LOGI(TAG, "File written");
+
+    return ESP_OK;
+}
+
 /***********************************************************************
  *
  * FUNCTION:     identify_mac
@@ -50,7 +64,11 @@ uint16_t identify_mac(uint64_t address) {
         address_prefix = address >>offset;
 
         if (address_prefix == entry.prefix) {
-            ESP_LOGI(TAG, "MAC address identified as %s", manufacturers[i]);
+#if CONFIG_DISPLAY_UNKNOWN
+            ESP_LOGI(TAG, "MAC address identified as %s", manufacturers[entry.man_id]);
+#else
+            if (entry.man_id > 0) ESP_LOGI(TAG, "MAC address identified as %s", manufacturers[entry.man_id]);
+#endif
             return entry.man_id;
         }
         else if (address_prefix > entry.prefix) {
@@ -126,13 +144,6 @@ void packet_handler(void *buf, wifi_promiscuous_pkt_type_t type) {
         ((uint64_t)addr1[3] << 16) |
         ((uint64_t)addr1[4] <<  8) |
         ((uint64_t)addr1[5]);
-    dst_mac =
-        ((uint64_t)addr2[0] << 40) |
-        ((uint64_t)addr2[1] << 32) |
-        ((uint64_t)addr2[2] << 24) |
-        ((uint64_t)addr2[3] << 16) |
-        ((uint64_t)addr2[4] <<  8) |
-        ((uint64_t)addr2[5]);
 
     if (!already_seen(src_mac)) {
         ESP_LOGI(TAG, "SRC MAC Address Detected: %02X:%02X:%02X:%02X:%02X:%02X",
@@ -143,8 +154,20 @@ void packet_handler(void *buf, wifi_promiscuous_pkt_type_t type) {
                  addr1[4],
                  addr1[5]);
         man_id = identify_mac(src_mac);
+#if CONFIG_DISPLAY_UNKNOWN
         display_write_16pt(manufacturers[man_id]);
+#else
+        if (man_id > 0) display_write_16pt(manufacturers[man_id]);
+#endif
     }
+
+    dst_mac =
+        ((uint64_t)addr2[0] << 40) |
+        ((uint64_t)addr2[1] << 32) |
+        ((uint64_t)addr2[2] << 24) |
+        ((uint64_t)addr2[3] << 16) |
+        ((uint64_t)addr2[4] <<  8) |
+        ((uint64_t)addr2[5]);
 
     if (!already_seen(dst_mac)) {
         ESP_LOGI(TAG, "DST MAC Address Detected: %02X:%02X:%02X:%02X:%02X:%02X",
@@ -155,7 +178,11 @@ void packet_handler(void *buf, wifi_promiscuous_pkt_type_t type) {
                  addr2[4],
                  addr2[5]);
         man_id = identify_mac(dst_mac);
+#if CONFIG_DISPLAY_UNKNOWN
         display_write_16pt(manufacturers[man_id]);
+#else
+        if (man_id > 0) display_write_16pt(manufacturers[man_id]);
+#endif
     }
 }
 
@@ -241,13 +268,17 @@ esp_err_t mountSPIFFS(char * path, char * label, int max_files) {
 
 
 void app_main(void) {
+    esp_err_t ret;
+
+//Spiffs
     // Mounts SPIFFS font partition and initializes display handler
     mountSPIFFS( "/fonts", "storage1" , 7 );
     display_init();
 
+//NVS
     // Initialize NVS boilerplate code
-    esp_err_t ret = nvs_flash_init();
-    if ( ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND ) {
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -294,10 +325,77 @@ void app_main(void) {
 
     nvs_close(st_handle);
     ESP_LOGI(TAG, "NVS handle closed.");
-
     char channel_notice[13];
     snprintf(channel_notice, 13, "Channel: %u", channel);
+    ESP_LOGI(TAG, "%s", channel_notice);
     display_write_16pt(channel_notice);
 
+
+//SDSPI
+#if CONFIG_SD_LOGGING
+
+    esp_vfs_fat_sdmmc_mount_config_t mount_config = {
+#ifdef CONFIG_FORMAT_IF_MOUNT_FAILED
+        .format_if_mount_failed = true,
+#else
+        .format_if_mount_failed = false,
+#endif // EXAMPLE_FORMAT_IF_MOUNT_FAILED
+        .max_files = 5,
+        .allocation_unit_size = 16 * 1024
+    };
+    sdmmc_card_t *card;
+
+    ESP_LOGI(TAG, "Initializing SD card");
+
+    ESP_LOGI(TAG, "Using SPI peripheral");
+
+    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+
+ /*   sdspi_device_config_t sdConfig = SDSPI_DEVICE_CONFIG_DEFAULT;
+    sdConfig.host_id = CONFIG_SDSPI_HOST;
+    sdConfig.gpio_cs = CONFIG_SDSPI_CS;
+*/
+#ifdef CONFIG_SDSPI3_HOST
+    host.slot = VSPI_HOST
+#endif
+
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num = CONFIG_SDMOSI_GPIO,
+        .miso_io_num = CONFIG_SDMISO_GPIO,
+        .sclk_io_num = CONFIG_SDSCLK_GPIO,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+    };
+
+    ret = spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize bus.");
+        return;
+    }
+
+    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+    slot_config.gpio_cs = CONFIG_SDCS_GPIO;
+    slot_config.host_id = host.slot;
+
+    ESP_LOGI(TAG, "Mounting filesystem");
+    ret = esp_vfs_fat_sdspi_mount("/minishark", &host, &slot_config, &mount_config, &card);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount filesystem. "
+                     "If you want the card to be formatted, set the FORMAT_IF_MOUNT_FAILED menuconfig option.");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                     "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+        }
+        return;
+    }
+    ESP_LOGI(TAG, "Filesystem mounted");
+
+    sd_log(channel_notice);
+#endif
+
+
+//WIFI
     wifi(channel);
 }

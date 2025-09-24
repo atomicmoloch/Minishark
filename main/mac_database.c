@@ -20465,7 +20465,7 @@ const char *manufacturers[] = {
   "Semsotec GmbH",
   "trilogik GmbH",
   "Sichuan Zhongguang Lightning Protection Technologies Co., Ltd.",
-  "Watts A\S",
+  "Watts A\\S",
   "Guangzhou Duge Technology Co.,LTD",
   "Atomos Engineering P/L",
   "Sinepower Lda",

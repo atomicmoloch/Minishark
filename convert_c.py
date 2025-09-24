@@ -27,7 +27,7 @@ def generate_c_database(inputFile, outputFile):
                 if not row:
                     continue
                 prefix = row[0].strip()
-                manufacturer = row[1].strip().replace("?", "").replace("\"", "") if len(row) > 1 else "Unknown"
+                manufacturer = row[1].strip().replace("?", "").replace("\"", "").replace("\\", "\\\\") if len(row) > 1 else "Unknown"
 
                 if manufacturer not in man_dict:
                     man_dict[manufacturer] = len(manufacturers)

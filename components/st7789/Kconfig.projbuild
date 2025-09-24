@@ -118,7 +118,7 @@ menu "ST7789 Configuration"
 
 	choice SPI_HOST
 		prompt "SPI peripheral that controls this bus"
-		default SPI2_HOST
+		default SPI3_HOST
 		help
 			Select SPI peripheral that controls this bus.
 		config SPI2_HOST
